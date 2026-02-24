@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c90b7d522f6b2d648a96b89b877d8430, type: 3}
+  m_Name: Character_Warrior
+  m_EditorClassIdentifier: 
+  RunSpeed: 5
+  RollSpeed: 10
+  HurtboxWidth: 0.4
+  HurtboxHeight: 0.9
+  HurtboxOffset: {x: 0, y: 0.45}
+  LogicFrameRate: 30
+  InputDelayFrames: 2
+  MaxRollbackFrames: 8
+  StageLeftBound: -8
+  StageRightBound: 8
+  StageGroundY: -6
+  MaxHealth: 100

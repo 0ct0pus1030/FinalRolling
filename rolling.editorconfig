@@ -1,0 +1,18 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+charset = utf-8-bom          # C# 文件建议带 BOM，避免编译警告
+indent_style = space
+indent_size = 4
+
+[*.{csproj,sln}]
+charset = utf-8-bom
+
+[*.{json,xml,config}]
+charset = utf-8
