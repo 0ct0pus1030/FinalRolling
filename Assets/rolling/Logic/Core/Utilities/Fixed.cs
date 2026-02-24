@@ -6,8 +6,8 @@ namespace FGLogic.Core
 {
     /// <summary>
     /// 32.32 定点数
-    /// 整数部分32位：±2,147,483,648
-    /// 小数部分32位：精度约 2.3e-10
+    /// 整数部分32位，范围约 ±2,147,483,648
+    /// 小数部分32位，精度约 2.3e-10
     /// </summary>
     public readonly struct Fixed : IEquatable<Fixed>, IComparable<Fixed>
     {
@@ -17,13 +17,11 @@ namespace FGLogic.Core
             return new Fixed(raw);
         }
 
-
-        public readonly long Raw; // 实际存储的64位定点数值
+        public readonly long Raw;
 
         private const int FRACTIONAL_BITS = 32;
-        private const long ONE = 1L << FRACTIONAL_BITS; // 1.0 的表示
+        private const long ONE = 1L << FRACTIONAL_BITS;
 
-        // 常用常量预计算
         public static readonly Fixed Zero = new Fixed(0);
         public static readonly Fixed One = new Fixed(ONE);
         public static readonly Fixed Half = new Fixed(ONE >> 1);
@@ -37,7 +35,7 @@ namespace FGLogic.Core
             Raw = raw;
         }
 
-        #region 构造与转换
+        #region 类型转换
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Fixed FromInt(int value)
@@ -85,22 +83,29 @@ namespace FGLogic.Core
             return new Fixed(-a.Raw);
         }
 
-        // 乘法：使用 decimal 作为中间类型避免溢出，然后除以 2^32
+        // 乘法：BigInteger 确保不溢出，跨平台确定性
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Fixed operator *(Fixed a, Fixed b)
         {
-            // (a * b) / 2^32
-            long result = (long)((((decimal)a.Raw * (decimal)b.Raw) / (decimal)ONE));
-            return new Fixed(result);
+            var result = (BigInteger)a.Raw * b.Raw >> FRACTIONAL_BITS;
+            
+            if (result > long.MaxValue) return MaxValue;
+            if (result < long.MinValue) return MinValue;
+            
+            return new Fixed((long)result);
         }
 
-        // 除法：被除数先乘 2^32，再除
+        // 除法：BigInteger 确保精度，跨平台确定性
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Fixed operator /(Fixed a, Fixed b)
         {
             if (b.Raw == 0) throw new DivideByZeroException();
-            long result = (long)((((decimal)a.Raw * (decimal)ONE) / (decimal)b.Raw));
-            return new Fixed(result);
+            var result = ((BigInteger)a.Raw << FRACTIONAL_BITS) / b.Raw;
+            
+            if (result > long.MaxValue) return MaxValue;
+            if (result < long.MinValue) return MinValue;
+            
+            return new Fixed((long)result);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -125,27 +130,19 @@ namespace FGLogic.Core
 
         #region 数学函数
 
-        /// <summary>
-        /// 平方根（整数牛顿迭代法，确定性）
-        /// </summary>
+        // Sqrt：纯整数牛顿法，固定10次迭代，跨平台确定性
         public static Fixed Sqrt(Fixed value)
         {
             if (value.Raw < 0) throw new ArithmeticException("Square root of negative number");
             if (value.Raw == 0) return Zero;
 
             long x = value.Raw;
-            long y = (x + ONE) >> 1; // 初始猜测：平均值
+            long y = (x + ONE) >> 1;
 
-            // 牛顿迭代：y = (y + x/y) / 2
-            // 使用 decimal 避免 (x * ONE) 溢出 64 位
-            for (int i = 0; i < 10; i++) // 10次迭代确保 32.32 精度收敛
+            for (int i = 0; i < 10; i++)
             {
-                // 定点数除法：x / y = (x * ONE) / y
-                long div = (long)(((decimal)x * ONE) / (decimal)y);
-                long next = (y + div) >> 1;
-
-                if (next == y) break; // 已收敛
-                y = next;
+                long div = (long)(((BigInteger)x << FRACTIONAL_BITS) / y);
+                y = (y + div) >> 1;
             }
 
             return new Fixed(y);
@@ -165,9 +162,6 @@ namespace FGLogic.Core
             return value;
         }
 
-
-        
-        
         #endregion
 
         #region 接口实现

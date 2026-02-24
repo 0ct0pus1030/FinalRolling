@@ -37,7 +37,7 @@ public class NetworkBattleController : MonoBehaviour
     // 输入缓冲
     private InputDelayBuffer inputBuffer;
     private const int BUFFER_SIZE = 64;
-    private const int INPUT_DELAY = 1;
+    private const int INPUT_DELAY = 2;
     private FrameInput[,] serverInputBuffer = new FrameInput[BUFFER_SIZE, 2];
 
     private BattleSystem battleSystem;
@@ -224,6 +224,8 @@ public class NetworkBattleController : MonoBehaviour
         // 基于 lastServerFrame 计算要发送的帧（提前 INPUT_DELAY+1 帧）
         int targetFrame = lastServerFrame + INPUT_DELAY + 1;
 
+        
+        /*
         // 如果本地已经发过了，等待（防超前）
         if (sendFrame > targetFrame)
         {
@@ -235,6 +237,10 @@ public class NetworkBattleController : MonoBehaviour
         {
             sendFrame = targetFrame;
         }
+        */
+        
+        //强制对齐
+        sendFrame = targetFrame;
 
         var inputToSend = inputBuffer.GetDelayed(sendFrame, myPlayerId);
         int dir = Direction.FromStick(inputToSend.Stick);
@@ -272,7 +278,9 @@ public class NetworkBattleController : MonoBehaviour
             inputs[i] = serverInputBuffer[idx, i];
             if (inputs[i].FrameId != executeFrame)
             {
-                inputs[i] = FrameInput.CreateEmpty(i, executeFrame);
+                //inputs[i] = FrameInput.CreateEmpty(i, executeFrame);
+                Debug.Log($"[NBC] 等待帧 {executeFrame} 玩家 {i} 数据");
+                return;
             }
         }
 
