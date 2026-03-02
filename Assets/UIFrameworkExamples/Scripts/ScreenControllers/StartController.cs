@@ -8,8 +8,8 @@ namespace UIFramework.Rolling
 
 {
 
-    public class StartGameSignal : ASignal { }   // ¿ªÊ¼ÓÎÏ·ĞÅºÅ
-    public class ExitGameSignal : ASignal { }    // ÍË³öÓÎÏ·ĞÅºÅ
+    public class StartGameSignal : ASignal { }   // å¼€å§‹æ¸¸æˆä¿¡å·
+    public class ExitGameSignal : ASignal { }    // é€€å‡ºæ¸¸æˆä¿¡å·
 
     public class StartController : WindowController
     {

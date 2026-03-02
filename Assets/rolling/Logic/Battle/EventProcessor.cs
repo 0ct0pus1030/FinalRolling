@@ -12,19 +12,19 @@ public class EventProcessor
             {
                 var target = state.GetPlayer(evt.TargetId);
 
-                //¿ÛÑª
+                //æ‰£è¡€
                 target.Health -= evt.Damage;
 
-                //ÇĞÊÜ»÷×´Ì¬
+                //åˆ‡å—å‡»çŠ¶æ€
                 target.StateId = 5; // Hurt
                 target.HitstunFrames = evt.HitStun;
                 target.StateEnterAbsoluteFrame = state.FrameId;
                 target.StateFrame = 0;
-                target.Velocity = FixedVector2.Zero; // ÊÜ»÷Ê±ËÙ¶ÈÇåÁã
+                target.Velocity = FixedVector2.Zero; // å—å‡»æ—¶é€Ÿåº¦æ¸…é›¶
 
                 state.SetPlayer(evt.TargetId, target);
             }
         }
-        state.EventCount = 0; // Ïû·ÑÍêÇå¿Õ
+        state.EventCount = 0; // æ¶ˆè´¹å®Œæ¸…ç©º
     }
 }
