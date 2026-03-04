@@ -82,7 +82,7 @@ namespace FGLogic.State
     public struct GameState
     {
         public int FrameId;
-        public uint RandomSeed;
+        public int RandomSeed;
 
         public FixedArray4<PlayerState> Players;
         public int PlayerCount;
@@ -103,6 +103,19 @@ namespace FGLogic.State
             if (EventCount >= 4) return; // 满了
             Events[EventCount] = evt;
             EventCount++;
+        }
+        
+        
+        public int ComputeSyncHash()
+        {
+            int hash = 0;
+    
+            for (int i = 0; i < PlayerCount; i++)
+            {
+                hash = HashCode.Combine(hash, Players[i].ComputeSyncHash());
+            }
+    
+            return hash;
         }
     }
 

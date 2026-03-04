@@ -13,13 +13,17 @@ namespace UIFramework.Rolling
     {
         [Header("UI元素")]
         [SerializeField] private Slider healthSlider;
-        [SerializeField] private TextMeshProUGUI frameText;
+        //[SerializeField] private TextMeshProUGUI frameText;
         [SerializeField] private TextMeshProUGUI eventText;
         [SerializeField] private Button exitButton;
 
         [Header("设置")]
         
         [SerializeField] private int maxHealth = 100;
+        
+        [Header("网络调试")] // 新增
+        [SerializeField] private TextMeshProUGUI p0StateText;  // P0数据
+        [SerializeField] private TextMeshProUGUI p1StateText;  // P1数据
 
         private BattleUIManager battleUI;
 
@@ -55,7 +59,18 @@ namespace UIFramework.Rolling
             healthSlider.value = (float)player.Health / maxHealth;
 
             // 帧号
-            frameText.text = $"F:{state.FrameId}";
+            //frameText.text = $"F:{state.FrameId}";
+            
+            //syncHashText.text = $"Hash: {battleUI.SyncHash:X8}";
+            
+            var p0 = state.Players[0];
+            var p1 = state.Players[1];
+            
+            // P0: 位置(X,Y) 状态ID 血量
+            p0StateText.text = $"P0:({p0.Position.X},{p0.Position.Y}) S{p0.StateId} HP{p0.Health}";
+            
+            // P1: 位置(X,Y) 状态ID 血量  
+            p1StateText.text = $"P1:({p1.Position.X},{p1.Position.Y}) S{p1.StateId} HP{p1.Health}";
 
             //MDZ5检测
 

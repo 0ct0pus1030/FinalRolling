@@ -84,6 +84,18 @@ namespace FGLogic.State
             }
             return (int)((InputHistoryDir >> (framesAgo * 4)) & 0xF);
         }
+        
+        
+        // 在 PlayerState struct 中添加
+        public int ComputeSyncHash()
+        {
+            // 只包含关键同步数据，排除所有帧号
+            int hash = PlayerId;
+            hash = HashCode.Combine(hash, Position.GetHashCode());  // 坐标
+            hash = HashCode.Combine(hash, StateId);                  // 招式状态
+            hash = HashCode.Combine(hash, Health);                   // 血量
+            return hash;
+        }
 
     }
 
@@ -97,6 +109,8 @@ namespace FGLogic.State
     }
 
     // 4. 临时攻击框状态（用于碰撞检测，每帧从 Config + PlayerState 计算）
+    
+    
     
 
 }

@@ -27,15 +27,15 @@ public class NetworkClient : MonoBehaviour
         // KCP配置（必须与服务器完全匹配）
         var config = new KcpConfig(
             DualMode: false,
-            RecvBufferSize: 1024 * 1024,   // 1MB
-            SendBufferSize: 1024 * 1024,   // 1MB
-            Mtu: 1400,
-            NoDelay: true,                 // 低延迟模式
-            Interval: 10,                  // 10ms间隔
-            FastResend: 2,                 // 快速重传
-            CongestionWindow: false,       // 关闭拥塞控制（格斗游戏需要稳定延迟）
-            SendWindowSize: 32,
-            ReceiveWindowSize: 128
+            RecvBufferSize: 1024 * 1024,
+            SendBufferSize: 1024 * 1024,
+            Mtu: 1200,              
+            NoDelay: true,
+            Interval: 5,            
+            FastResend: 1,          
+            CongestionWindow: true,
+            SendWindowSize: 128,    
+            ReceiveWindowSize: 256
         );
 
         client = new KcpClient(

@@ -42,6 +42,7 @@ public class NetworkBattleController : MonoBehaviour
 
     private BattleSystem battleSystem;
     private int serverStartFrame = 0;
+    public int CurrentStateHash { get; private set; }
 
     public BattleSystem BattleSystem => battleSystem;
 
@@ -109,24 +110,38 @@ public class NetworkBattleController : MonoBehaviour
 
     void HandleGameStart(byte[] data)
     {
-        serverStartFrame = 0;
-        if (data.Length >= 5)
-        {
-            serverStartFrame = BitConverter.ToInt32(data, 1);
-        }
-        Debug.Log($"[NBC] 收到GameStart，服务端起始帧: {serverStartFrame}");
-        StartCoroutine(CountdownAndInit(serverStartFrame));
+        int startFrame = BitConverter.ToInt32(data, 1);
+        long targetTime = BitConverter.ToInt64(data, 5);
+        StartCoroutine(SyncStartFlow(startFrame, targetTime));
     }
 
-    IEnumerator CountdownAndInit(int startFrame)
+    IEnumerator SyncStartFlow(int startFrame, long targetTime)
     {
-        yield return new WaitForSeconds(3);
-        InitBattle(startFrame);
-
-        var readyWindow = FindObjectOfType<PlayerReadyWindowController>();
-        readyWindow?.OnMatchFound();
         Signals.Get<ToPVPVPSignal>()?.Dispatch();
+        
+        yield return new WaitUntil(() => UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "pvpvp");
+        yield return null;
+    
+        Debug.Log("[NBC] 场景加载完成");
+        
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        long waitMs = targetTime - now;
+    
+        if (waitMs > 0)
+        {
+            Debug.Log($"[NBC] 等待同步 {waitMs}ms");
+            yield return new WaitForSeconds(waitMs / 1000f);
+        }
+        else
+        {
+            Debug.LogWarning($"[NBC] 已错过 {(int)-waitMs}ms");
+        }
+    
+        Debug.Log($"=== 同步开始！{DateTimeOffset.UtcNow:HH:mm:ss.fff} ===");
+        
+        InitBattle(startFrame);
     }
+    
 
     void InitBattle(int startFrame)
     {
@@ -166,32 +181,60 @@ public class NetworkBattleController : MonoBehaviour
 
     void HandleBroadcast(byte[] data)
     {
-        if (data.Length < 9) return;
-
-        int frame = BitConverter.ToInt32(data, 1);
-
-        // 【关键】检查是否丢帧（调试用途）
-        if (lastServerFrame >= 0 && frame != lastServerFrame + 1)
+        // 新包大小：Type(1) + CurFrame(4) + 3×[FrameId(4)+Input0(8)+Input1(8)] = 65字节
+        if (data.Length < 65) 
         {
-            Debug.LogWarning($"[NBC] 跳帧检测: 从{lastServerFrame}跳到{frame}, 差值{frame - lastServerFrame - 1}");
+            Debug.LogWarning($"[NBC] 广播包长度不足: {data.Length}, 期望65");
+            return;
         }
-
-        lastServerFrame = frame;
-        hasNewBroadcast = true;  // 【关键】标记收到新帧
-
-        int idx = frame & (BUFFER_SIZE - 1);
-
-        for (int i = 0; i < 2; i++)
+    
+        int serverCurFrame = BitConverter.ToInt32(data, 1);
+        lastServerFrame = serverCurFrame;
+        hasNewBroadcast = true;
+    
+        // 检查是否连续丢包（当前帧号 vs 上次收到的）
+        if (lastServerFrame > 0 && serverCurFrame > lastServerFrame + 1)
         {
-            int offset = 5 + i * 2;
-            serverInputBuffer[idx, i] = new FrameInput
+            int lost = serverCurFrame - lastServerFrame - 1;
+            Debug.LogWarning($"[NBC] 检测到下行丢包: 丢失 {lost} 帧，尝试从冗余恢复...");
+        }
+        
+        // 从第5字节开始解析3帧数据
+        int offset = 5;
+    
+        for (int f = 0; f < 3; f++) // 解析3帧冗余数据
+        {
+            int frameId = BitConverter.ToInt32(data, offset);
+            offset += 4;
+        
+            // 只存储有效的帧（在未来10帧范围内）
+            if (frameId >= executeFrame - 10 && frameId < executeFrame + 20)
             {
-                FrameId = frame,
-                PlayerId = i,
-                Buttons = data[offset],
-                Stick = Direction.ToVector(data[offset + 1]),
-                IsPredicted = false
-            };
+                int idx = frameId & (BUFFER_SIZE - 1);
+            
+                for (int i = 0; i < 2; i++) // 两个玩家
+                {
+                    byte[] inputData = new byte[8];
+                    Buffer.BlockCopy(data, offset, inputData, 0, 8);
+                    offset += 8;
+                
+                    var input = FrameInput.Deserialize(inputData);
+                    input.FrameId = frameId;  // 强制修正
+                    input.PlayerId = i;
+                    serverInputBuffer[idx, i] = input;
+                }
+            
+                // 如果补上了之前缺失的帧，打个日志
+                if (frameId == executeFrame)
+                {
+                    Debug.Log($"[NBC] 冗余恢复帧 {frameId}");
+                }
+            }
+            else
+            {
+                // 跳过这帧数据（太旧或太远）
+                offset += 16;
+            }
         }
     }
 
@@ -221,71 +264,66 @@ public class NetworkBattleController : MonoBehaviour
 
     void SendInput()
     {
-        // 基于 lastServerFrame 计算要发送的帧（提前 INPUT_DELAY+1 帧）
-        int targetFrame = lastServerFrame + INPUT_DELAY + 1;
-
-        
-        /*
-        // 如果本地已经发过了，等待（防超前）
-        if (sendFrame > targetFrame)
-        {
-            return;
-        }
-
-        // 如果落后太多，追赶
-        if (sendFrame < targetFrame)
-        {
-            sendFrame = targetFrame;
-        }
-        */
-        
-        //强制对齐
+        int targetFrame = lastServerFrame + INPUT_DELAY + 2;
         sendFrame = targetFrame;
 
-        var inputToSend = inputBuffer.GetDelayed(sendFrame, myPlayerId);
-        int dir = Direction.FromStick(inputToSend.Stick);
-
-        byte[] data = new byte[7];
-        data[0] = (byte)PacketType.Input;
-        BitConverter.GetBytes(sendFrame).CopyTo(data, 1);
-        data[5] = (byte)inputToSend.Buttons;
-        data[6] = (byte)dir;
-
-        network.Send(data);
+        // 发送当前帧 + 前两帧（共3帧冗余，防丢包）
+        for (int i = 0; i < 3; i++)
+        {
+            int frameToSend = sendFrame - i;
+            if (frameToSend < 0) break;
+        
+            var input = inputBuffer.GetDelayed(frameToSend, myPlayerId);
+        
+            // 构造包
+            byte[] inputBytes = input.Serialize();
+            byte[] packet = new byte[9];
+            packet[0] = (byte)PacketType.Input;
+            Buffer.BlockCopy(inputBytes, 0, packet, 1, 8);
+        
+            network.Send(packet);
+        }
+    
         sendFrame++;
     }
 
     void ExecuteLogic()
     {
-        // 执行当前应执行的帧（滞后 INPUT_DELAY 帧）
-        int frameToExecute = lastServerFrame - INPUT_DELAY;
-
-        // 检查是否已执行过
-        if (frameToExecute < executeFrame) return;
-
-        // 如果落后，追赶（理论上不应发生，除非刚启动）
-        if (frameToExecute > executeFrame)
+        // 执行到服务器允许的最大帧（滞后 INPUT_DELAY）
+        int maxExecuteFrame = lastServerFrame - INPUT_DELAY;
+    
+        // 限制每帧最多执行2帧，防止一次性追赶过多导致卡顿
+        int maxFramesToExecute = 2;
+        int executed = 0;
+    
+        while (executeFrame <= maxExecuteFrame && executed < maxFramesToExecute)
         {
-            Debug.LogWarning($"[NBC] 追赶: {executeFrame} -> {frameToExecute}");
-            executeFrame = frameToExecute;
-        }
+            int idx = executeFrame & (BUFFER_SIZE - 1);
+            var inputs = new FrameInput[2];
+            bool hasAllData = true;
 
-        int idx = executeFrame & (BUFFER_SIZE - 1);
-        var inputs = new FrameInput[2];
-
-        for (int i = 0; i < 2; i++)
-        {
-            inputs[i] = serverInputBuffer[idx, i];
-            if (inputs[i].FrameId != executeFrame)
+            for (int i = 0; i < 2; i++)
             {
-                //inputs[i] = FrameInput.CreateEmpty(i, executeFrame);
-                Debug.Log($"[NBC] 等待帧 {executeFrame} 玩家 {i} 数据");
-                return;
+                inputs[i] = serverInputBuffer[idx, i];
+            
+                // 如果这帧数据缺失（即使冗余也没收到），用空输入补上
+                if (inputs[i].FrameId != executeFrame)
+                {
+                    inputs[i] = FrameInput.CreateEmpty(i, executeFrame);
+                    hasAllData = false;
+                }
             }
-        }
 
-        battleSystem.Step(inputs);
-        executeFrame++;
+            // 执行这一帧
+            battleSystem.Step(inputs);
+            executeFrame++;
+            executed++;
+            CurrentStateHash = battleSystem.CurrentState.ComputeSyncHash();
+        
+            // 如果数据齐全且只落后1帧，正常速度执行
+            if (hasAllData && executeFrame > maxExecuteFrame - 1) 
+                break;
+        }
     }
 
     void Render()

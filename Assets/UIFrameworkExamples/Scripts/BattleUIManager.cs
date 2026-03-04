@@ -11,6 +11,7 @@ public class BattleUIManager : MonoBehaviour
 
     private GameState currentState;
     private GameEvent lastEvent;
+    public int SyncHash { get; private set; } 
     //联机临时不做，本地默认0
     private int localPlayerId = 0;
     private bool isNetworkMode = false;
@@ -33,6 +34,19 @@ public class BattleUIManager : MonoBehaviour
             }
         }
     }
+    
+    void Update()
+    {
+        // 每帧更新数据（供外部 UI 读取）
+        if (isNetworkMode)
+        {
+            var nbc = NetworkBattleController.Instance;
+            if (nbc != null)
+            {
+                SyncHash = nbc.CurrentStateHash;
+            }
+        }
+    }
 
     public int GetLocalPlayerId() => localPlayerId;
 
@@ -41,7 +55,7 @@ public class BattleUIManager : MonoBehaviour
         Signals.Get<GameStateChangedSignal>().AddListener(OnStateChanged);
         Signals.Get<GameEventSignal>().AddListener(OnGameEvent);
     }
-
+    
     void OnDisable()
     {
         Signals.Get<GameStateChangedSignal>().RemoveListener(OnStateChanged);

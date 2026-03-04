@@ -42,52 +42,43 @@ namespace FGLogic.Input
             Fixed.Abs(Stick.X) > Fixed.FromFloat(0.02f) ||
             Fixed.Abs(Stick.Y) > Fixed.FromFloat(0.02f);
 
-        /// <summary>
-        /// 【修改】序列化：不再传x,y坐标，而是传方向数字(1-9)
-        /// 7字节：FrameId(4) + Buttons(1) + Direction(1) + 保留(1)
-        /// </summary>
         public byte[] Serialize()
         {
             int dir = Direction.FromStick(Stick);
-
-            // 【修改】8字节：增加 PlayerId
-            return new byte[]
-            {
-        (byte)(FrameId >> 24),
-        (byte)(FrameId >> 16),
-        (byte)(FrameId >> 8),
-        (byte)(FrameId),
-        (byte)Buttons,
-        (byte)dir,
-        (byte)PlayerId,      // ← 新增：第6字节是 PlayerId
-        0                    // 保留字节
-            };
+            byte[] result = new byte[8];
+    
+            // 使用 BitConverter（小端，与服务器一致）
+            BitConverter.GetBytes(FrameId).CopyTo(result, 0);  // [0-3]
+            result[4] = (byte)Buttons;
+            result[5] = (byte)dir;
+            result[6] = (byte)PlayerId;
+            result[7] = 0;
+    
+            return result;
         }
 
-        public static FrameInput Deserialize(byte[] data)  // 【修改】去掉 playerId 参数
+        public static FrameInput Deserialize(byte[] data)
         {
-            if (data == null || data.Length < 7)
-                throw new ArgumentException("数据长度不足7字节");
+            if (data == null || data.Length < 8)  // 改为 8！
+                throw new ArgumentException("数据长度不足8字节");
 
-            int frameId = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
+            // 使用 BitConverter（小端，与服务器一致）
+            int frameId = BitConverter.ToInt32(data, 0);  // 改为 BitConverter！
             int buttons = data[4];
             int dir = data[5];
-            int playerId = data[6];           // ← 从数据包解析 PlayerId
-            FixedVector2 stick = Direction.ToVector(dir);
-
+            int playerId = data[6];
+    
             return new FrameInput
             {
-                PlayerId = playerId,          // ← 使用解析出的真实 PlayerId
+                PlayerId = playerId,
                 FrameId = frameId,
                 Buttons = buttons,
-                Stick = stick,
+                Stick = Direction.ToVector(dir),
                 IsPredicted = false
             };
         }
 
-        /// <summary>
-        /// 【修改】反序列化：从方向数字(1-9)查表得到精确向量
-        /// </summary>
+       //旧方法
         public static FrameInput Deserialize(byte[] data, int playerId)
         {
             if (data == null || data.Length < 7)
@@ -99,16 +90,16 @@ namespace FGLogic.Input
             // 解析按键
             int buttons = data[4];
 
-            // 【关键】解析方向数字（1-9），然后查表得到精确向量
+            //查表
             int dir = data[5];
-            FixedVector2 stick = Direction.ToVector(dir);  // ← 查表，不是从float还原
+            FixedVector2 stick = Direction.ToVector(dir);
 
             return new FrameInput
             {
                 PlayerId = playerId,
                 FrameId = frameId,
                 Buttons = buttons,
-                Stick = stick,      // ← 两边用同一个表，得到完全一样的值
+                Stick = stick,
                 IsPredicted = false
             };
         }

@@ -30,7 +30,7 @@ public class StateSerializer
         {
             var state = new GameState();
             state.FrameId = reader.ReadInt32();
-            state.RandomSeed = reader.ReadUInt32();
+            //state.RandomSeed = reader.ReadUInt32();
             state.PlayerCount = reader.ReadInt32();
 
             for (int i = 0; i < state.PlayerCount; i++)
